@@ -20,6 +20,17 @@ module.exports = (sequelize, DataTypes) => {
     level: DataTypes.INTEGER
   }, {});
   userskills.associate = function (models) {
+    userskills.belongsTo(models.User, {
+
+      foreignKey: {
+        field: "user_id"
+      }
+    })
+    userskills.belongsTo(models.Skill, {
+      foreignKey: {
+        field: "skill_id"
+      }
+    })
 
     // associations can be defined here
   };

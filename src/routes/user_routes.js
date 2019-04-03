@@ -1,7 +1,7 @@
 import express from "express";
 import passport from "passport";
 import jwt from "jsonwebtoken";
-
+import Sequelize from "sequelize"
 // pull in error types and the logic to handle them and set status codes
 import { BadParamsError } from "../lib/custom_errors";
 
@@ -12,7 +12,7 @@ const localAuth = passport.authenticate("local", { session: false });
 const User = models.User;
 const Skills = models.Skill;
 const userskills = models.userskills;
-
+const Op = Sequelize.Op;
 // instantiate a router (mini app that only handles routes)
 const router = express.Router();
 
@@ -131,8 +131,22 @@ router.patch("/user-info", (req, res, next) => {
     .catch(next);
 
 });
-router.get("/user-info/:email", (req, res, next) => {
-  console.log("get user- user-info " + req.params.email);
+router.get("/user-info/:id", (req, res, next) => {
+  //console.log("get user- user-info " + req.params.email);
+
+  User.findOne({
+    where: {
+      id: req.params.id
+    }
+  })
+    .then(user => {
+      res.status(200).json({ user: user });
+    })
+    .catch(next);
+
+});
+router.get("/user-id/:email", (req, res, next) => {
+
 
   User.findOne({
     where: {
@@ -147,32 +161,95 @@ router.get("/user-info/:email", (req, res, next) => {
 });
 router.post("/user/:id/skill", (req, res, next) => {
   console.log("poooooossssstttt skiiiiil")
-  Skills.findOne({ where: { id: req.body.data.id } }).then(skill => {
+  console.log("\n\n\\n\ skill")
 
-    User.findOne({
-      where: {
-        id: req.params.id
-      }
-    })
-      .then(user => {
-        user.addSkill(skill, { through: { level: req.body.data.level } })
-          .then(sc => { sc: sc })
-      });
+  userskills.create({
+    level: req.body.data.level,
+    skill_id: req.body.data.id,
+    user_id: req.params.id
   })
-
-  router.get("/user/skills", (req, res, next) => {
-    userskills.findAll({
-      where: {
-        user_id: 1
-      }
+    .then(user => {
+      res.status(200).json({ success: true, user });
     })
-      .then(user => {
-        res.status(200).json({ user: user });
-      })
-      .catch(next);
+    .catch(e => console.log(e));
 
-  });
+})
+router.delete("/user/:id/skill", (req, res, next) => {
+  console.log("ddeeeeellllleeeeete")
+
+  userskills.destroy({
+    where: {
+      [Op.and]: {
+        user_id: req.params.id,
+        skill_id: req.body.skill_id
+      }
+    }
+  }).then(() => {
+    res.status(200).json({ success: true });
+  }).catch(e => res.status(404).json({ success: false }))
 
 });
 
+router.get("/user/:id/skills", (req, res, next) => {
+  User.findOne({
+    attributes: ["id"],
+    where: {
+      id: req.params.id
+    },
+    include: [{ model: userskills, as: "Skill", attributes: ["level", "user_id", "skill_id"], include: [{ model: Skills, attributes: ["name", "id"], }] }]
+  }).then(user => {
+
+    // TODO : change it from the frontend 
+    const format = user.Skill.map(user => {
+      return {
+        id: user.Skill.id,
+        name: user.Skill.name,
+        userskills: {
+          user_id: user.user_id,
+          skill_id: user.skill_id,
+          level: user.level
+        }
+      }
+    })
+    res.status(200).json({ skill: format });
+  }).catch(next);
+
+});
+
+
+
+router.get('/users', (req, res) => {
+  User.findAll()
+    .then(users => {
+      res.status(200).json({
+        users: users
+      });
+    })
+    .catch(e => console.log(e));
+
+});
+
+
+router.get('/search/users', (req, res) => {
+  let userResults = [];
+
+  User.findAll({
+    include: [{ model: userskills, as: "Skill" }],
+    where: {
+      [Op.and]: {
+        "$Skill.skill_id$": req.query.id,
+        "$Skill.level$": { [Op.gte]: req.query.level }
+      }
+    }
+  })
+    .then(s => {
+      console.log(s)
+      res.status(200).json({
+        users: s
+      });
+    })
+
+    .catch(e => console.log(e));
+
+});
 export default router;
